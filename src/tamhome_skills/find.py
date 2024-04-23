@@ -5,12 +5,12 @@ import tf
 import sys
 import math
 import rospy
-import moveit_commander
+import numpy as np
 # import moveit_msgs.msg
 import tf2_ros
-import tf2_geometry_msgs
 from typing import Tuple, List
 from tamlib.utils import Logger
+from tamlib.tf import Transform
 
 from sigverse_hsrlib import HSRBMoveIt, MoveJoints
 
@@ -33,12 +33,13 @@ class Find(Logger):
         self.listener = tf2_ros.TransformListener(self.tf_listener)
         self.broadcaster = tf2_ros.TransformBroadcaster()
 
-        self.move_joints = MoveJoints()
-        self.moveit = HSRBMoveIt()
+        self.tam_move_joints = MoveJoints()
+        self.tam_moveit = HSRBMoveIt()
+        self.tamtf = Transform()
 
         # ros interface
         self.pub_base_rot = rospy.Publisher('/hsrb/command_velocity', Twist, queue_size=1)
-        self.srv_detection = rospy.ServiceProxy("sigverse/hsr_head_rgbd/object_detection/service", LangSamObjectDetectionService)
+        self.srv_detection = rospy.ServiceProxy("/hsr_head_rgbd/lang_sam/object_detection/service", LangSamObjectDetectionService)
 
     def delete(self):
         return
@@ -60,7 +61,7 @@ class Find(Logger):
         self.pub_base_rot.publish(twist_msg)
         self.pub_base_rot.publish(twist_msg)
 
-    def _head_rotation(self, points=[-180, -90, 0, 90]):
+    def _head_rotation(self, points=[90, 0, -90, -180]):
         """指定されたポイントの順番にしたがって首を回転させる
         Args:
             point(List): 指定ジョイント角度のリスト
@@ -71,10 +72,11 @@ class Find(Logger):
         """
         try:
             for point in points:
-                current_joint = self.move_joints.get_current_joint()
-                current_head_pan_joint = current_joint["head_pan_joint"]
-                self.move_joints.move_head(current_head_pan_joint, point)
-                rospy.sleep(2)
+                current_joint = self.tam_move_joints.get_current_joint()
+                current_head_tile_joint = current_joint["head_tilt_joint"]
+                self.tam_move_joints.move_head(point, current_head_tile_joint)
+                distance = current_joint["head_pan_joint"] - np.deg2rad(point)
+                rospy.sleep(abs(distance)*2.5)
         except Exception as e:
             self.logwarn(e)
             self.logwarn("invalid joint in head_tilte_joint")
@@ -87,9 +89,9 @@ class Find(Logger):
         Returns:
             None
         """
-        self.move_joints.go()
+        self.tam_move_joints.go()
         rospy.sleep(2)
-        self.move_joints.move_head(0, -40)
+        self.tam_move_joints.move_head(0, -40)
         rospy.sleep(2)
         return
 
@@ -167,6 +169,7 @@ class Find(Logger):
         Return:
             Pose: 対象物体の位置
         """
+        self.loginfo(f"find: target object name is {target_object}")
         if is_rotation:
             rotation_points = [-180, -90, 0, 90]
         else:
@@ -184,7 +187,7 @@ class Find(Logger):
                 prompt=target_object
             )
             detections = self.srv_detection(det_req).detections
-            self.logtrace(detections)
+            self.logdebug(detections)
 
             # 認識に失敗した場合
             if detections.is_detected is False:
@@ -196,26 +199,29 @@ class Find(Logger):
                 pass
 
             pose = detections.pose[0]
-            pose_by_list = [pose.position.x, pose.position.y, pose.position.z, pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
-            rospy.set_param("/tamhome_skills/object_detection/current_pose", pose_by_list)
+            pose_odom = self.tamtf.get_pose_with_offset(
+                target_frame="odom",
+                source_frame="head_rgbd_sensor_link",
+                offset=pose,
+            )
+            if pose_odom is not None:
+                # rosparamに設定できる形式に変換
+                pose_by_list = [
+                    float(pose_odom.position.x),
+                    float(pose_odom.position.y),
+                    float(pose_odom.position.z),
+                    float(pose_odom.orientation.x),
+                    float(pose_odom.orientation.y),
+                    float(pose_odom.orientation.z),
+                    float(pose_odom.orientation.w)
+                ]
+                rospy.set_param("/tamhome_skills/object_detection/current_pose_odom", pose_by_list)
 
             if return_all:
                 return detections
             else:
+                self.logsuccess("find: find target object!")
                 return detections.pose[0]
-
-    # def all_close(self, goal, actual, tolerance):
-    #     """
-    #     目標位置と現在位置の差を比較
-    #     """
-    #     if type(goal) is list:
-    #         for g, a in zip(goal, actual):
-    #             if abs(a - g) > tolerance:
-    #                 return False
-    #     elif type(goal) is Pose:
-    #         return self.all_close([goal.position.x, goal.position.y, goal.position.z], [actual.position.x, actual.position.y, actual.position.z], tolerance) and \
-    #             self.all_close([goal.orientation.x, goal.orientation.y, goal.orientation.z, goal.orientation.w], [actual.orientation.x, actual.orientation.y, actual.orientation.z, actual.orientation.w], tolerance)
-    #     return True
 
 
 if __name__ == '__main__':

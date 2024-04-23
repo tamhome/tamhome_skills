@@ -18,8 +18,8 @@ class Grasp(Logger):
     def __init__(self):
         Logger.__init__(self, loglevel="INFO")
 
-        self.move_joints = MoveJoints()
-        self.moveit = HSRBMoveIt()
+        self.tam_move_joints = MoveJoints()
+        self.tam_moveit = HSRBMoveIt()
         self.tamtf = Transform()
 
         # Create a tf
@@ -60,7 +60,7 @@ class Grasp(Logger):
         self.loginfo("start grasping")
         start_time = rospy.Time.now()
         target_frame = "odom"
-        while (rospy.Time.now() - start_time) > rospy.Duration(timeout):
+        while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
             grasp_pose = Pose(
                 target_pose.position,
                 Quaternion(0, 0, 0, 1),
@@ -72,30 +72,30 @@ class Grasp(Logger):
                 offset=grasp_pose,
             )
 
-            self.move_joints.gripper(3.14)
+            self.tam_move_joints.gripper(3.14)
             # 把持前の姿勢に移動
             grasp_pose_odom_pre = grasp_pose_odom
             grasp_pose_odom_pre.position.z = grasp_pose_odom.position.z + 0.1
             grasp_pose_odom_pre.orientation = euler2quaternion(0, -1.57, np.pi)
-            res = self.moveit.move_to_pose(grasp_pose_odom_pre, target_frame)
+            res = self.tam_moveit.move_to_pose(grasp_pose_odom_pre, target_frame)
             rospy.sleep(1)
 
             # 把持姿勢に遷移
             grasp_pose_base_second = grasp_pose_odom_pre
             grasp_pose_base_second.position.z = grasp_pose_odom_pre.position.z - 0.03
-            res = self.moveit.move_to_pose(grasp_pose_base_second, target_frame)
+            res = self.tam_moveit.move_to_pose(grasp_pose_base_second, target_frame)
             rospy.sleep(1)
 
             # 把持
-            self.move_joints.gripper(0)
+            self.tam_move_joints.gripper(0)
             rospy.sleep(1)
-            self.move_joints.move_arm_by_line(+0.03, "arm_lift_joint")
+            self.tam_move_joints.move_arm_by_line(+0.03, "arm_lift_joint")
             rospy.sleep(1)
-            self.move_joints.gripper(0)
+            self.tam_move_joints.gripper(0)
             rospy.sleep(1)
 
             # 移動姿勢にする
-            self.move_joints.go()
+            self.tam_move_joints.go()
 
             # TODO: 把持検証を実装
 
