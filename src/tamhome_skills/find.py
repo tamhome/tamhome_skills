@@ -26,7 +26,7 @@ from tam_object_detection.srv import LangSamObjectDetectionService, LangSamObjec
 class Find(Logger):
 
     def __init__(self):
-        Logger.__init__(self, loglevel="DEBUG")
+        Logger.__init__(self, loglevel="INFO")
 
         # TF2リスナーのセットアップ
         self.tf_listener = tf2_ros.Buffer()
@@ -51,7 +51,7 @@ class Find(Logger):
         """
         start_time = rospy.Time.now()
         duration_time = angle / 45
-        while (rospy.Time.now() - start_time) > rospy.Duration(duration_time):
+        while (rospy.Time.now() - start_time) < rospy.Duration(duration_time):
             twist_msg = Twist()
             twist_msg.angular.z = 0.4
             self.pub_base_rot.publish(twist_msg)
@@ -72,9 +72,10 @@ class Find(Logger):
         """
         try:
             for point in points:
+                self.loginfo(f"target head_pan_joint: {point}")
                 current_joint = self.tam_move_joints.get_current_joint()
                 current_head_tile_joint = current_joint["head_tilt_joint"]
-                self.tam_move_joints.move_head(point, current_head_tile_joint)
+                self.tam_move_joints.move_head(np.deg2rad(point), current_head_tile_joint)
                 distance = current_joint["head_pan_joint"] - np.deg2rad(point)
                 rospy.sleep(abs(distance)*2.5)
         except Exception as e:
@@ -91,7 +92,7 @@ class Find(Logger):
         """
         self.tam_move_joints.go()
         rospy.sleep(2)
-        self.tam_move_joints.move_head(0, -40)
+        self.tam_move_joints.move_head(0, np.deg2rad(-40))
         rospy.sleep(2)
         return
 
@@ -144,7 +145,7 @@ class Find(Logger):
         self,
         target_object: str,
         max_distance=0,
-        confidence_th=0.5,
+        confidence_th=0.8,
         show_tf=True,
         tf_name=None,
         base_frame="odom",
@@ -169,29 +170,48 @@ class Find(Logger):
         Return:
             Pose: 対象物体の位置
         """
+        is_detected = False
         self.loginfo(f"find: target object name is {target_object}")
-        if is_rotation:
-            rotation_points = [-180, -90, 0, 90]
-        else:
-            rotation_points = [999]
+        base_rotation_angle = 0
+        confidence_th += 0.1
 
-        for point in rotation_points:
-            if point != 999:
-                self._head_rotation(points=[point])
+        while not is_detected:
+            # 首を降っても見つからなかった場合
+            confidence_th = confidence_th - 0.1
+            if base_rotation_angle != 0:
+                self._base_rotation(base_rotation_angle)
 
-            det_req = LangSamObjectDetectionServiceRequest(
-                confidence_th=confidence_th,
-                iou_th=0.5,
-                max_distance=max_distance,
-                use_latest_image=True,
-                prompt=target_object
-            )
-            detections = self.srv_detection(det_req).detections
-            self.logdebug(detections)
+            # どのように首を振るか決定
+            if is_rotation:
+                rotation_points = [0, 30, -30]
+            else:
+                rotation_points = [999]
 
-            # 認識に失敗した場合
+            # 首を振りながら検出を実行
+            for point in rotation_points:
+                if point != 999:
+                    self._head_rotation(points=[point])
+
+                det_req = LangSamObjectDetectionServiceRequest(
+                    confidence_th=confidence_th,
+                    iou_th=0.8,
+                    max_distance=max_distance,
+                    use_latest_image=True,
+                    prompt=target_object
+                )
+                detections = self.srv_detection(det_req).detections
+                self.logtrace(detections)
+
+                # 認識に失敗した場合
+                if detections.is_detected is False:
+                    self.loginfo(f"Could not detect target object: {target_object}")
+                    base_rotation_angle = 5
+                    continue
+                else:
+                    break
+
+            # 認識に失敗した場合は台車を移動させて再度認識をかける
             if detections.is_detected is False:
-                self.loginfo(f"Could not detect target object: {target_object}")
                 continue
 
             # 認識に成功した場合

@@ -27,7 +27,7 @@ class Grasp(Logger):
         self.listener = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.listener)
 
-        self.pub_base_rot = rospy.Publisher('/hsrb/command_velocity', Twist, queue_size=1)
+        self.pub_base_velocity = rospy.Publisher('/hsrb/command_velocity', Twist, queue_size=1)
 
     def delete(self):
         return
@@ -36,6 +36,40 @@ class Grasp(Logger):
         """把持失敗
         """
         self.logwarn("grasp: failed grasping")
+
+    def _move_backward(self, value=0.1) -> None:
+        """台車を後ろに下げる
+        Args:
+            value(float): 移動量
+        """
+        start_time = rospy.Time.now()
+        duration_time = value / 0.1
+        while (rospy.Time.now() - start_time) < rospy.Duration(duration_time):
+            twist_msg = Twist()
+            twist_msg.linear.x = -0.2
+            self.pub_base_velocity.publish(twist_msg)
+
+        twist_msg = Twist()
+        twist_msg.linear.x = 0.0
+        self.pub_base_velocity.publish(twist_msg)
+        self.pub_base_velocity.publish(twist_msg)
+
+    def _move_forward(self, value=0.1) -> None:
+        """台車を前に動かす
+        Args:
+            value(float): 移動量
+        """
+        start_time = rospy.Time.now()
+        duration_time = value / 0.1
+        while (rospy.Time.now() - start_time) < rospy.Duration(duration_time):
+            twist_msg = Twist()
+            twist_msg.linear.x = 0.2
+            self.pub_base_velocity.publish(twist_msg)
+
+        twist_msg = Twist()
+        twist_msg.linear.x = 0.0
+        self.pub_base_velocity.publish(twist_msg)
+        self.pub_base_velocity.publish(twist_msg)
 
     def grasp_obj_by_pose(
         self,
@@ -73,18 +107,36 @@ class Grasp(Logger):
             )
 
             self.tam_move_joints.gripper(3.14)
-            # 把持前の姿勢に移動
-            grasp_pose_odom_pre = grasp_pose_odom
-            grasp_pose_odom_pre.position.z = grasp_pose_odom.position.z + 0.1
-            grasp_pose_odom_pre.orientation = euler2quaternion(0, -1.57, np.pi)
-            res = self.tam_moveit.move_to_pose(grasp_pose_odom_pre, target_frame)
-            rospy.sleep(1)
 
-            # 把持姿勢に遷移
-            grasp_pose_base_second = grasp_pose_odom_pre
-            grasp_pose_base_second.position.z = grasp_pose_odom_pre.position.z - 0.03
-            res = self.tam_moveit.move_to_pose(grasp_pose_base_second, target_frame)
-            rospy.sleep(1)
+            # TODO: 正面からの把持を実装
+            if grasp_from == "front":
+                pass
+                # # 把持前の姿勢に移動
+                # grasp_pose_odom_pre = grasp_pose_odom
+                # grasp_pose_odom_pre.position.z = grasp_pose_odom.position.z + 0.1
+                # grasp_pose_odom_pre.orientation = euler2quaternion(0, -1.57, np.pi)
+                # res = self.tam_moveit.move_to_pose(grasp_pose_odom_pre, target_frame)
+                # rospy.sleep(1)
+
+                # # 把持姿勢に遷移
+                # grasp_pose_base_second = grasp_pose_odom_pre
+                # grasp_pose_base_second.position.z = grasp_pose_odom_pre.position.z - 0.03
+                # res = self.tam_moveit.move_to_pose(grasp_pose_base_second, target_frame)
+                # rospy.sleep(1)
+
+            else:
+                # 把持前の姿勢に移動
+                grasp_pose_odom_pre = grasp_pose_odom
+                grasp_pose_odom_pre.position.z = grasp_pose_odom.position.z + 0.1
+                grasp_pose_odom_pre.orientation = euler2quaternion(0, -1.57, np.pi)
+                res = self.tam_moveit.move_to_pose(grasp_pose_odom_pre, target_frame)
+                rospy.sleep(1)
+
+                # 把持姿勢に遷移
+                grasp_pose_base_second = grasp_pose_odom_pre
+                grasp_pose_base_second.position.z = grasp_pose_odom_pre.position.z - 0.03
+                res = self.tam_moveit.move_to_pose(grasp_pose_base_second, target_frame)
+                rospy.sleep(1)
 
             # 把持
             self.tam_move_joints.gripper(0)
@@ -93,6 +145,9 @@ class Grasp(Logger):
             rospy.sleep(1)
             self.tam_move_joints.gripper(0)
             rospy.sleep(1)
+
+            # 後ろに下がる
+            self._move_backward(value=0.15)
 
             # 移動姿勢にする
             self.tam_move_joints.go()

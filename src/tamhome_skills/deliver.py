@@ -20,6 +20,7 @@ from tam_mmaction2.msg import Ax3DPoseWithLabel, AxKeyPoint
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 from .find import Find
 
+
 class Deliver(Logger):
     def __init__(self):
         Logger.__init__(self, loglevel="INFO")
@@ -70,7 +71,7 @@ class Deliver(Logger):
 
     def pass_to_near_person(self, timeout=100):
         start_time = rospy.Time.now()
-        while (rospy.Time.now() - start_time) > rospy.Duration(timeout):
+        while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
             try:
                 # メッセージを取得する
                 msg: Ax3DPoseWithLabelArray = rospy.wait_for_message("/mmaction2/poses/with_label", Ax3DPoseWithLabelArray, timeout=3)
