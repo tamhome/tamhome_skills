@@ -106,7 +106,10 @@ class Grasp(Logger):
                 offset=grasp_pose,
             )
 
+            self.tam_move_joints.go()
+            rospy.sleep(2)
             self.tam_move_joints.gripper(3.14)
+            rospy.sleep(2)
 
             # TODO: 正面からの把持を実装
             if grasp_from == "front":

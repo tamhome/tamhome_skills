@@ -114,6 +114,10 @@ class Put(Logger):
         ]
         rospy.set_param("/tamhome_skills/put_object/furniture_pose", pose_by_list)
 
+        # 逆運動学をときやすい姿勢に変更
+        self.tam_move_joints.go()
+        rospy.sleep(2)
+
         # 把持前の姿勢に移動
         put_pose_odom = pose
         put_pose_odom.position.z = pose.position.z + 0.1
