@@ -114,20 +114,24 @@ class Put(Logger):
         ]
         rospy.set_param("/tamhome_skills/put_object/furniture_pose", pose_by_list)
 
-        # 逆運動学をときやすい姿勢に変更
-        self.tam_move_joints.go()
-        rospy.sleep(2)
+        # # 逆運動学をときやすい姿勢に変更
+        # self.tam_move_joints.go()
+        # rospy.sleep(2)
 
-        # 把持前の姿勢に移動
+        # 配置の前姿勢に移動
         put_pose_odom = pose
         put_pose_odom.position.z = pose.position.z + 0.1
         put_pose_odom.orientation = euler2quaternion(0, -1.57, np.pi)
-        res = self.tam_moveit.move_to_pose(put_pose_odom, target_frame)
-        rospy.sleep(1)
+        status = self.tam_moveit.move_to_pose(put_pose_odom, target_frame)
 
-        self.tam_move_joints.gripper(3.14)
-        rospy.sleep(1)
+        if status is False:
+            return False
+        else:
+            rospy.sleep(1)
 
-        self._move_backward(value=0.1)
+            self.tam_move_joints.gripper(3.14)
+            rospy.sleep(1)
 
-        return True
+            self._move_backward(value=0.1)
+
+            return True
