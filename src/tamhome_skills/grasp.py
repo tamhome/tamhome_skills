@@ -37,45 +37,71 @@ class Grasp(Logger):
         """
         self.logwarn("grasp: failed grasping")
 
-    def _set_z_axis(self, pose_odom: Pose, timeout=30) -> bool:
+    def _set_z_axis(self, pose_odom: Pose, timeout=50, tolerance=0.015, grasp_type="top") -> bool:
         """目標TFの高さとハンドの高さを揃える関数
         Args:
             pose_odom(Pose): Odom座標系のTF
         """
-        start_time = rospy.Time.now()
-        while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
-            pose_from_handpalm: Pose = self.tamtf.get_pose_with_offset(
-                target_frame="hand_palm_link",
-                source_frame="odom",
-                offset=pose_odom
-            )
+        if grasp_type == "top":
+            start_time = rospy.Time.now()
+            while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
+                pose_from_handpalm: Pose = self.tamtf.get_pose_with_offset(
+                    target_frame="hand_palm_link",
+                    source_frame="odom",
+                    offset=pose_odom
+                )
 
-            distance_z = pose_from_handpalm.position.z
-            self.loginfo(f"distance of z axis: {distance_z}")
+                distance_z = pose_from_handpalm.position.z
+                self.loginfo(f"distance of z axis: {distance_z}")
 
-            if abs(distance_z) < 0.015:
-                self.loginfo("goal reached")
-                self.tam_move_joints.move_arm_by_line(+0.0, "arm_lift_joint")
-                return True
+                if abs(distance_z) < tolerance:
+                    self.loginfo("goal reached")
+                    self.tam_move_joints.move_arm_by_line(+0.0, "arm_lift_joint")
+                    return True
 
-            if distance_z < 0:
-                self.loginfo("ハンドのほうが下にあるので，上げる")
-                self.tam_move_joints.move_arm_by_line(+0.01, "arm_lift_joint")
-            else:
-                self.loginfo("ハンドのほうが上にあるので，下げる")
-                self.tam_move_joints.move_arm_by_line(-0.01, "arm_lift_joint")
+                if distance_z < 0:
+                    self.loginfo("ハンドのほうが下にあるので，上げる")
+                    self.tam_move_joints.move_arm_by_line(+0.01, "arm_lift_joint")
+                else:
+                    self.loginfo("ハンドのほうが上にあるので，下げる")
+                    self.tam_move_joints.move_arm_by_line(-0.01, "arm_lift_joint")
 
-            rospy.sleep(0.5)
+                rospy.sleep(0.5)
 
-        # タイムアウトした場合
-        return False
+            # タイムアウトした場合
+            return False
+        else:
+            start_time = rospy.Time.now()
+            while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
+                pose_from_handpalm: Pose = self.tamtf.get_pose_with_offset(
+                    target_frame="hand_palm_link",
+                    source_frame="odom",
+                    offset=pose_odom
+                )
 
-    def _set_xy_axis(self, pose_odom: Pose, timeout=30) -> bool:
+                distance_x = pose_from_handpalm.position.x
+                self.loginfo(f"distance of y axis: {distance_x}")
+
+                if abs(distance_x) < 0.015:
+                    self.loginfo("goal reached")
+                    self.tam_move_joints.move_arm_by_line(+0.0, "arm_lift_joint")
+                    return True
+
+                if distance_x > 0:
+                    self.loginfo("ハンドのほうが下にあるので，上げる")
+                    self.tam_move_joints.move_arm_by_line(+0.01, "arm_lift_joint")
+                else:
+                    self.loginfo("ハンドのほうが上にあるので，下げる")
+                    self.tam_move_joints.move_arm_by_line(-0.01, "arm_lift_joint")
+
+                rospy.sleep(0.5)
+
+    def _set_xy_axis(self, pose_odom: Pose, timeout=30, grasp_type="top") -> bool:
         """目標TFのXY軸とハンドのXYを揃える関数
         Args:
             pose_odom(Pose): Odom座標系のTF
         """
-        try:
+        if grasp_type == "top":
             self.loginfo("reach to y axis")
             start_time = rospy.Time.now()
             while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
@@ -136,10 +162,69 @@ class Grasp(Logger):
             twist_msg.linear.x = 0.0
             twist_msg.linear.y = 0.0
             self.pub_base_velocity.publish(twist_msg)
+        else:
+            self.loginfo("front mode")
+            self.loginfo("reach to y axis")
+            start_time = rospy.Time.now()
+            while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
+                # y方向の誤差をなくす
+                pose_from_handpalm: Pose = self.tamtf.get_pose_with_offset(
+                    target_frame="hand_palm_link",
+                    source_frame="odom",
+                    offset=pose_odom
+                )
 
-        except Exception as e:
-            self.logwarn(e)
-            return False
+                distance_y = abs(pose_from_handpalm.position.y)
+                self.loginfo(distance_y)
+
+                if distance_y < 0.010:
+                    twist_msg = Twist()
+                    twist_msg.linear.x = 0.0
+                    twist_msg.linear.y = 0.0
+                    self.pub_base_velocity.publish(twist_msg)
+                    break
+
+                twist_msg = Twist()
+                if pose_from_handpalm.position.y < 0:
+                    twist_msg.linear.y = +0.10
+                else:
+                    twist_msg.linear.y = -0.10
+                self.pub_base_velocity.publish(twist_msg)
+                rospy.sleep(0.1)
+
+            self.loginfo("reach to x axis")
+
+            start_time = rospy.Time.now()
+            while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
+                pose_from_handpalm: Pose = self.tamtf.get_pose_with_offset(
+                    target_frame="hand_palm_link",
+                    source_frame="odom",
+                    offset=pose_odom
+                )
+                pose_from_handpalm.position.z = pose_from_handpalm.position.z - 0.015
+                distance_z = abs(pose_from_handpalm.position.z)
+                self.loginfo(distance_z)
+
+                if distance_z < 0.007:
+                    twist_msg = Twist()
+                    twist_msg.linear.x = 0.0
+                    twist_msg.linear.y = 0.0
+                    self.pub_base_velocity.publish(twist_msg)
+                    break
+
+                twist_msg = Twist()
+                if pose_from_handpalm.position.z < 0:
+                    twist_msg.linear.x = -0.10
+                else:
+                    twist_msg.linear.x = +0.10
+
+                self.pub_base_velocity.publish(twist_msg)
+                rospy.sleep(0.1)
+
+            twist_msg = Twist()
+            twist_msg.linear.x = 0.0
+            twist_msg.linear.y = 0.0
+            self.pub_base_velocity.publish(twist_msg)
 
     def _grasp_recovery_mode(self, pose_odom: Pose, source_frame="odom") -> bool:
         """把持のデフォルト姿勢をとったうえで，base_footprintとの誤差分移動する
@@ -158,12 +243,6 @@ class Grasp(Logger):
         )
         rospy.sleep(2.5)
 
-        # pose_from_handpalm: Pose = self.tamtf.get_pose_with_offset(
-        #     target_frame="hand_palm_link",
-        #     source_frame=source_frame,
-        #     offset=pose_odom
-        # )
-
         status = self._set_z_axis(pose_odom=pose_odom)
         if status is False:
             self.loginfo("z軸高さを合わせることができませんでした")
@@ -178,79 +257,6 @@ class Grasp(Logger):
         self.tam_move_joints.move_arm_by_line(-0.04, "arm_lift_joint")
 
         return True
-
-        # distance_z = pose_from_handpalm.position.z
-        # if distance_z > 0:
-        #     lift_height = 0
-        # else:
-        #     lift_height = abs(distance_z) + 0.03
-
-        # self.tam_move_joints.move_arm_by_pose(
-        #     lift_height,
-        #     default_grasp_joint[1],
-        #     default_grasp_joint[2],
-        #     default_grasp_joint[3],
-        #     default_grasp_joint[4],
-        # )
-
-        # rospy.sleep(1)
-
-        # pose_baselink: Pose = self.tamtf.get_pose_with_offset(
-        #     target_frame="base_footprint",
-        #     source_frame=source_frame,
-        #     offset=pose_odom
-        # )
-        # self.loginfo(pose_baselink)
-
-        # try:
-        #     distance_x = abs(pose_baselink.position.x)
-        #     distance_y = abs(pose_baselink.position.y)
-
-        #     # xとy方向の誤差をなくす
-        #     timeout = distance_y / 0.26
-        #     start_time = rospy.Time.now()
-
-        #     while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
-        #         twist_msg = Twist()
-        #         if pose_baselink.position.y < 0:
-        #             twist_msg.linear.y = -0.5
-        #         else:
-        #             twist_msg.linear.y = 0.5
-        #         self.pub_base_velocity.publish(twist_msg)
-
-        #     timeout = distance_x / 0.68
-        #     start_time = rospy.Time.now()
-
-        #     while (rospy.Time.now() - start_time) < rospy.Duration(timeout):
-        #         twist_msg = Twist()
-        #         if pose_baselink.position.x < 0:
-        #             twist_msg.linear.x = -0.5
-        #         else:
-        #             twist_msg.linear.x = 0.5
-
-        #         self.pub_base_velocity.publish(twist_msg)
-
-        #     twist_msg = Twist()
-        #     twist_msg.linear.x = 0.0
-        #     twist_msg.linear.y = 0.0
-        #     self.pub_base_velocity.publish(twist_msg)
-
-        #     rospy.sleep(2)
-
-        #     self.tam_move_joints.move_arm_by_pose(
-        #         lift_height - 0.09,
-        #         default_grasp_joint[1],
-        #         default_grasp_joint[2],
-        #         default_grasp_joint[3],
-        #         default_grasp_joint[4],
-        #     )
-        #     rospy.sleep(2)
-
-            # return True
-
-        # except Exception as e:
-        #     self.logwarn(e)
-        #     return False
 
     def _move_backward(self, value=0.1) -> None:
         """台車を後ろに下げる
@@ -286,6 +292,23 @@ class Grasp(Logger):
         self.pub_base_velocity.publish(twist_msg)
         self.pub_base_velocity.publish(twist_msg)
 
+    def grasp_check(self, th=0.1) -> bool:
+        """ハンドの開閉角をもとにした把持チェック
+        Args:
+            th(float): hand_l_spring_proximal_joint の値（開閉角として利用）
+        Returns:
+            bool: 把持している（アームが開いている状態）ならTrue
+        """
+        current_joint = self.tam_move_joints.get_current_joint()
+        hand_open_rad = current_joint["hand_l_spring_proximal_joint"]
+
+        if hand_open_rad < th:
+            self.logdebug("failed grasping")
+            return False
+        else:
+            self.loginfo("success grasping")
+            return True
+
     def grasp_obj_by_pose(
         self,
         target_pose: Pose,
@@ -304,7 +327,7 @@ class Grasp(Logger):
             timeout(int): タイムアウト
                 defaults to 60
         Returns:
-            bool: 把持に成功したかどうか（指定動作を完了したかどうか）
+            bool: 把持に成功したかどうか
         """
         self.loginfo("start grasping")
         start_time = rospy.Time.now()
@@ -347,8 +370,8 @@ class Grasp(Logger):
                 grasp_pose_odom_pre = grasp_pose_odom
                 grasp_pose_odom_pre.position.z = grasp_pose_odom.position.z + 0.1
                 grasp_pose_odom_pre.orientation = euler2quaternion(0, -1.57, np.pi)
-                status = self.tam_moveit.move_to_pose(grasp_pose_odom_pre, target_frame)
-                # status = False
+                # status = self.tam_moveit.move_to_pose(grasp_pose_odom_pre, target_frame)
+                status = False
                 rospy.sleep(1)
 
                 if status is False:
@@ -377,10 +400,14 @@ class Grasp(Logger):
             # 移動姿勢にする
             self.tam_move_joints.go()
 
-            # TODO: 把持検証を実装
-
-            self.loginfo("grasp: success")
-            return True
+            # 把持検証を実装
+            grasp_status = self.grasp_check()
+            if grasp_status is True:
+                self.loginfo("grasp: success")
+                return True
+            else:
+                self.loginfo("grasp: failure")
+                return False
 
         self.loginfo("grasp: timeout")
         return False
