@@ -351,19 +351,17 @@ class Grasp(Logger):
 
             # TODO: 正面からの把持を実装
             if grasp_from == "front":
-                pass
-                # # 把持前の姿勢に移動
-                # grasp_pose_odom_pre = grasp_pose_odom
-                # grasp_pose_odom_pre.position.z = grasp_pose_odom.position.z + 0.1
-                # grasp_pose_odom_pre.orientation = euler2quaternion(0, -1.57, np.pi)
-                # res = self.tam_moveit.move_to_pose(grasp_pose_odom_pre, target_frame)
-                # rospy.sleep(1)
-
-                # # 把持姿勢に遷移
-                # grasp_pose_base_second = grasp_pose_odom_pre
-                # grasp_pose_base_second.position.z = grasp_pose_odom_pre.position.z - 0.03
-                # res = self.tam_moveit.move_to_pose(grasp_pose_base_second, target_frame)
-                # rospy.sleep(1)
+                default_grasp_joint = [0.0, -2.00, 0.0, 0.43, 0.0]
+                self.tam_move_joints.move_arm_by_pose(
+                    default_grasp_joint[0],
+                    default_grasp_joint[1],
+                    default_grasp_joint[2],
+                    default_grasp_joint[3],
+                    default_grasp_joint[4],
+                )
+                rospy.sleep(2.5)
+                self._set_z_axis(pose_odom=grasp_pose_odom, grasp_type="front", tolerance=0.03)
+                self._set_xy_axis(pose_odom=grasp_pose_odom, grasp_type="front")
 
             else:
                 # 把持前の姿勢に移動
