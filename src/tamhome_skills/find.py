@@ -174,10 +174,13 @@ class Find(Logger):
         self.loginfo(f"find: target object name is {target_object}")
         base_rotation_angle = 0
         confidence_th += 0.1
+        iou_th = 0.9
 
         while not is_detected:
             # 首を降っても見つからなかった場合
             confidence_th = confidence_th - 0.1
+            iou_th = iou_th - 0.1
+
             if base_rotation_angle != 0:
                 self._base_rotation(base_rotation_angle)
 
