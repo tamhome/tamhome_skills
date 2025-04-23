@@ -52,18 +52,20 @@ class Grasp(Logger):
                 )
 
                 distance_z = pose_from_handpalm.position.z
-                self.loginfo(f"distance of z axis: {distance_z}")
+                self.logdebug(f"distance of z axis: {distance_z}")
 
                 if abs(distance_z) < tolerance:
-                    self.loginfo("goal reached")
+                    self.logsuccess("z axis: goal reached")
                     self.tam_move_joints.move_arm_by_line(+0.0, "arm_lift_joint")
                     return True
 
                 if distance_z < 0:
-                    self.loginfo("ハンドのほうが下にあるので，上げる")
+                    self.logdebug("ハンドのほうが下にあるので，上げる")
+                    if distance_z < 0.1:
+                        self.tam_move_joints.move_arm_by_line(+0.05, "arm_lift_joint")
                     self.tam_move_joints.move_arm_by_line(+0.01, "arm_lift_joint")
                 else:
-                    self.loginfo("ハンドのほうが上にあるので，下げる")
+                    self.logdebug("ハンドのほうが上にあるので，下げる")
                     self.tam_move_joints.move_arm_by_line(-0.01, "arm_lift_joint")
 
                 rospy.sleep(0.5)
@@ -80,18 +82,18 @@ class Grasp(Logger):
                 )
 
                 distance_x = pose_from_handpalm.position.x
-                self.loginfo(f"distance of y axis: {distance_x}")
+                self.logdebug(f"distance of y axis: {distance_x}")
 
                 if abs(distance_x) < 0.015:
-                    self.loginfo("goal reached")
+                    self.logsuccess("y axis: goal reached")
                     self.tam_move_joints.move_arm_by_line(+0.0, "arm_lift_joint")
                     return True
 
                 if distance_x > 0:
-                    self.loginfo("ハンドのほうが下にあるので，上げる")
+                    self.logdebug("ハンドのほうが下にあるので，上げる")
                     self.tam_move_joints.move_arm_by_line(+0.01, "arm_lift_joint")
                 else:
-                    self.loginfo("ハンドのほうが上にあるので，下げる")
+                    self.logdebug("ハンドのほうが上にあるので，下げる")
                     self.tam_move_joints.move_arm_by_line(-0.01, "arm_lift_joint")
 
                 rospy.sleep(0.5)
@@ -113,7 +115,7 @@ class Grasp(Logger):
                 )
 
                 distance_y = abs(pose_from_handpalm.position.y)
-                self.loginfo(distance_y)
+                self.logdebug(distance_y)
 
                 if distance_y < 0.010:
                     twist_msg = Twist()
@@ -140,7 +142,7 @@ class Grasp(Logger):
                     offset=pose_odom
                 )
                 distance_x = abs(pose_from_handpalm.position.x)
-                self.loginfo(distance_x)
+                self.logdebug(distance_x)
 
                 if distance_x < 0.010:
                     twist_msg = Twist()
@@ -175,7 +177,7 @@ class Grasp(Logger):
                 )
 
                 distance_y = abs(pose_from_handpalm.position.y)
-                self.loginfo(distance_y)
+                self.logdebug(distance_y)
 
                 if distance_y < 0.010:
                     twist_msg = Twist()
@@ -203,7 +205,7 @@ class Grasp(Logger):
                 )
                 pose_from_handpalm.position.z = pose_from_handpalm.position.z - 0.015
                 distance_z = abs(pose_from_handpalm.position.z)
-                self.loginfo(distance_z)
+                self.logdebug(distance_z)
 
                 if distance_z < 0.007:
                     twist_msg = Twist()
