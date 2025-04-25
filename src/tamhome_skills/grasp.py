@@ -62,8 +62,8 @@ class Grasp(Logger):
                 if distance_z < 0:
                     self.logdebug("ハンドのほうが下にあるので，上げる")
                     if distance_z < 0.1:
-                        self.tam_move_joints.move_arm_by_line(+0.05, "arm_lift_joint")
-                    self.tam_move_joints.move_arm_by_line(+0.01, "arm_lift_joint")
+                        self.tam_move_joints.move_arm_by_line(+0.07, "arm_lift_joint")
+                    self.tam_move_joints.move_arm_by_line(+0.02, "arm_lift_joint")
                 else:
                     self.logdebug("ハンドのほうが上にあるので，下げる")
                     self.tam_move_joints.move_arm_by_line(-0.01, "arm_lift_joint")
@@ -325,7 +325,7 @@ class Grasp(Logger):
                 odom以外では動かないので要修正
             grasp_from(str): どの方向から把持するか
                 top: 上から
-                fromt: 手前から
+                front: 手前から
             timeout(int): タイムアウト
                 defaults to 60
         Returns:
