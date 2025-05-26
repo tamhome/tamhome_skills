@@ -98,7 +98,7 @@ class Grasp(Logger):
 
                 rospy.sleep(0.5)
 
-    def _set_xy_axis(self, pose_odom: Pose, timeout=30, grasp_type="top") -> bool:
+    def _set_xy_axis(self, pose_odom: Pose, timeout=30, grasp_type="top", offset_x=0.0185) -> bool:
         """目標TFのXY軸とハンドのXYを揃える関数
         Args:
             pose_odom(Pose): Odom座標系のTF
@@ -203,7 +203,7 @@ class Grasp(Logger):
                     source_frame="odom",
                     offset=pose_odom
                 )
-                pose_from_handpalm.position.z = pose_from_handpalm.position.z - 0.015
+                pose_from_handpalm.position.z = pose_from_handpalm.position.z - offset_x
                 distance_z = abs(pose_from_handpalm.position.z)
                 self.logdebug(distance_z)
 
@@ -316,6 +316,7 @@ class Grasp(Logger):
         target_pose: Pose,
         source_frame: str = "odom",
         grasp_from="top",
+        default_grasp_joint=[0.0, -2.00, 0.0, 0.43, 0.0],
         timeout=60
     ) -> bool:
         """Pose指定による把持
@@ -353,7 +354,7 @@ class Grasp(Logger):
 
             # TODO: 正面からの把持を実装
             if grasp_from == "front":
-                default_grasp_joint = [0.0, -2.00, 0.0, 0.43, 0.0]
+                # default_grasp_joint = [0.0, -2.00, 0.0, 0.43, 0.0]
                 self.tam_move_joints.move_arm_by_pose(
                     default_grasp_joint[0],
                     default_grasp_joint[1],
